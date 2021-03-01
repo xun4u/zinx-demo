@@ -1,6 +1,7 @@
 package znet
 
 import (
+	"errors"
 	"fmt"
 	"github.com/xun4u/zinx-demo/zinface"
 	"net"
@@ -29,6 +30,17 @@ func NewServer(name string) zinface.IServer {
 	return s
 }
 
+//定义当前客户连接锁绑定的handle 目前是写死 以后根据用户自定义
+func CallBackToClient(conn *net.TCPConn, data []byte, n int) error {
+	//回显的业务
+	fmt.Println("链接handle调用CallBackToClient")
+	if _, err := conn.Write(data[:n]); err != nil {
+		fmt.Println("回写buf错误：", err)
+		return errors.New("CallBackToClient err")
+	}
+	return nil
+}
+
 func (s *Server) Start() {
 
 	go func() {
@@ -45,6 +57,8 @@ func (s *Server) Start() {
 			return
 		}
 		fmt.Println("服务器开启成功")
+		var cid uint32
+		cid = 0
 
 		//3 accept 阻塞客户端的链接 处理客户端的链接业务（读写）
 		for {
@@ -55,23 +69,12 @@ func (s *Server) Start() {
 				continue
 			}
 
-			//已经建立了连接，然后业务操作(先读sock 然后写入sock)
-			go func() {
-				for {
-					buf := make([]byte, 512)
-					n, err := conn.Read(buf)
-					if err != nil {
-						fmt.Println("读取buf错误：", err)
-						continue
-					}
+			//将处理新链接业务的方法 和conn绑定 得到链接模块
+			dealConn := NewConnection(conn, cid, CallBackToClient)
+			cid++
 
-					//回显
-					if _, err := conn.Write(buf[:n]); err != nil {
-						fmt.Println("回写buf错误：", err)
-						continue
-					}
-				}
-			}()
+			//启动当前链接业务处理
+			go dealConn.Start()
 		}
 	}()
 
