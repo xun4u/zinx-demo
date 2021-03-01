@@ -2,6 +2,7 @@ package znet
 
 import (
 	"fmt"
+	"github.com/xun4u/zinx-demo/utils"
 	"github.com/xun4u/zinx-demo/zinface"
 	"net"
 )
@@ -43,7 +44,7 @@ func (c *Connection) StartReader() {
 	defer c.Stop()
 	for {
 		//读取客户端的数据到buf中，最大512
-		buf := make([]byte, 512)
+		buf := make([]byte, utils.GlobalObject.MaxPackageSize)
 		_, err := c.Conn.Read(buf)
 		if err != nil {
 			fmt.Println("buf读取错误", err)

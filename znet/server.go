@@ -2,6 +2,7 @@ package znet
 
 import (
 	"fmt"
+	"github.com/xun4u/zinx-demo/utils"
 	"github.com/xun4u/zinx-demo/zinface"
 	"net"
 )
@@ -21,12 +22,12 @@ type Server struct {
 }
 
 //初始化方法
-func NewServer(name string) zinface.IServer {
+func NewServer() zinface.IServer {
 	s := &Server{
-		Name:      name,
+		Name:      utils.GlobalObject.Name,
 		IPVersion: "tcp4",
-		IP:        "0.0.0.0",
-		Port:      8999,
+		IP:        utils.GlobalObject.Host,
+		Port:      utils.GlobalObject.TcpPort,
 		Router:    nil,
 	}
 	return s
