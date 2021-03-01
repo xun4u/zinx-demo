@@ -16,19 +16,22 @@ type Connection struct {
 	//当前链接状态
 	isClosed bool
 	//当前链接锁绑定的业务处理方法API
-	handleApi zinface.HandleFunc
+	//handleApi zinface.HandleFunc
 	//告知当前链接已经退出/停止的 channel
 	ExitChan chan bool
+
+	//该链接处理的方法Router
+	Router zinface.IRouter
 }
 
 //初始化
-func NewConnection(conn *net.TCPConn, connID uint32, callback_api zinface.HandleFunc) *Connection {
+func NewConnection(conn *net.TCPConn, connID uint32, router zinface.IRouter) *Connection {
 	c := &Connection{
-		Conn:      conn,
-		ConnID:    connID,
-		isClosed:  false,
-		handleApi: callback_api,
-		ExitChan:  make(chan bool, 1),
+		Conn:     conn,
+		ConnID:   connID,
+		isClosed: false,
+		Router:   router,
+		ExitChan: make(chan bool, 1),
 	}
 	return c
 }
@@ -41,17 +44,32 @@ func (c *Connection) StartReader() {
 	for {
 		//读取客户端的数据到buf中，最大512
 		buf := make([]byte, 512)
-		n, err := c.Conn.Read(buf)
+		_, err := c.Conn.Read(buf)
 		if err != nil {
 			fmt.Println("buf读取错误", err)
 			continue
 		}
 
-		//调用当前链接绑定的API处理业务
-		if err := c.handleApi(c.Conn, buf, n); err != nil {
-			fmt.Println("ConnID=", c.ConnID, "handle错误", err)
-			break
+		////调用当前链接绑定的API处理业务
+		//if err := c.handleApi(c.Conn, buf, n); err != nil {
+		//	fmt.Println("ConnID=", c.ConnID, "handle错误", err)
+		//	break
+		//}
+
+		//得到当前conn数据的request
+		req := Request{
+			conn: c,
+			data: buf,
 		}
+		//执行注册的路由方法
+		go func(request zinface.IRequest) {
+			c.Router.PreHandle(request)
+			c.Router.Handle(request)
+			c.Router.PostHandle(request)
+		}(&req)
+
+		//从路由中找到注册绑定的conn对应的router调用
+
 	}
 }
 

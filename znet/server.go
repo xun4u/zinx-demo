@@ -1,7 +1,6 @@
 package znet
 
 import (
-	"errors"
 	"fmt"
 	"github.com/xun4u/zinx-demo/zinface"
 	"net"
@@ -17,6 +16,8 @@ type Server struct {
 	IP string
 	//监听端口
 	Port int
+	//当前的server添加一个router，server注册的链接对应的处理业务
+	Router zinface.IRouter
 }
 
 //初始化方法
@@ -26,20 +27,21 @@ func NewServer(name string) zinface.IServer {
 		IPVersion: "tcp4",
 		IP:        "0.0.0.0",
 		Port:      8999,
+		Router:    nil,
 	}
 	return s
 }
 
 //定义当前客户连接锁绑定的handle 目前是写死 以后根据用户自定义
-func CallBackToClient(conn *net.TCPConn, data []byte, n int) error {
-	//回显的业务
-	fmt.Println("链接handle调用CallBackToClient")
-	if _, err := conn.Write(data[:n]); err != nil {
-		fmt.Println("回写buf错误：", err)
-		return errors.New("CallBackToClient err")
-	}
-	return nil
-}
+//func CallBackToClient(conn *net.TCPConn, data []byte, n int) error {
+//	//回显的业务
+//	fmt.Println("链接handle调用CallBackToClient")
+//	if _, err := conn.Write(data[:n]); err != nil {
+//		fmt.Println("回写buf错误：", err)
+//		return errors.New("CallBackToClient err")
+//	}
+//	return nil
+//}
 
 func (s *Server) Start() {
 
@@ -70,7 +72,7 @@ func (s *Server) Start() {
 			}
 
 			//将处理新链接业务的方法 和conn绑定 得到链接模块
-			dealConn := NewConnection(conn, cid, CallBackToClient)
+			dealConn := NewConnection(conn, cid, s.Router)
 			cid++
 
 			//启动当前链接业务处理
@@ -89,4 +91,9 @@ func (s *Server) Serve() {
 	//todo 以后做一些服务器启动后额外的业务
 
 	select {}
+}
+
+func (s *Server) AddRouter(router zinface.IRouter) {
+	s.Router = router
+	fmt.Println("添加路由成功")
 }
