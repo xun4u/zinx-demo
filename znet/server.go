@@ -49,6 +49,9 @@ func NewServer() zinface.IServer {
 func (s *Server) Start() {
 
 	go func() {
+		//开启消息队列和worker工作池
+		s.MsgHandler.StartWorkerPool()
+
 		//1 tcp的addr
 		addr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))
 		if err != nil {

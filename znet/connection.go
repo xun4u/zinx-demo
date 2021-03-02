@@ -3,6 +3,7 @@ package znet
 import (
 	"errors"
 	"fmt"
+	"github.com/xun4u/zinx-demo/utils"
 	"github.com/xun4u/zinx-demo/zinface"
 	"io"
 	"net"
@@ -105,7 +106,14 @@ func (c *Connection) StartReader() {
 
 		//从路由中找到注册绑定的conn对应的router调用
 		//根据绑定好的msgid找到对应api业务执行
-		go c.MsgHandler.DoMsgHandler(&req)
+		//go c.MsgHandler.DoMsgHandler(&req)
+
+		if utils.GlobalObject.WorkerPoolSize > 0 {
+			c.MsgHandler.SendMsgToTaskQueue(&req)
+		} else {
+			go c.MsgHandler.DoMsgHandler(&req)
+		}
+
 	}
 }
 
