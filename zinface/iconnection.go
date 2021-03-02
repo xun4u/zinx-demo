@@ -16,6 +16,13 @@ type IConnection interface {
 	RemoteAddr() net.Addr
 	//发送数据 将数据发送给远程客户端,即往socket中write字节
 	SendMsg(uint32, []byte) error
+
+	//设置连接属性
+	SetProperty(key string, value interface{})
+	//获取链接属性
+	GetProperty(key string) (interface{}, error)
+	//移除链接属性
+	RemoveProperty(key string)
 }
 
 //定义一个处理连接业务的方法

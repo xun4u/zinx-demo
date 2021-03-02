@@ -32,6 +32,7 @@ func (mh *MsgHandle) DoMsgHandler(request zinface.IRequest) {
 	handler, ok := mh.Apis[request.GetMsgID()]
 	if !ok {
 		fmt.Println("api msgid=", request.GetMsgID(), "is not found,need register")
+		return
 	}
 	//根据msgid调度对应的业务
 	handler.PreHandle(request)
