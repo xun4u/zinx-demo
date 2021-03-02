@@ -15,7 +15,7 @@ type IConnection interface {
 	//获取远程客户端tcp状态 ip port
 	RemoteAddr() net.Addr
 	//发送数据 将数据发送给远程客户端,即往socket中write字节
-	Send(data []byte) error
+	SendMsg(uint32, []byte) error
 }
 
 //定义一个处理连接业务的方法
