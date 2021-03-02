@@ -19,8 +19,11 @@ type Connection struct {
 	isClosed bool
 	//当前链接锁绑定的业务处理方法API
 	//handleApi zinface.HandleFunc
-	//告知当前链接已经退出/停止的 channel
+	//告知当前链接已经退出/停止的 channel 由reader告诉writer
 	ExitChan chan bool
+
+	//无缓冲的管道，用于读写协程之间的通信
+	msgChan chan []byte
 
 	//该链接处理的方法Router
 	//Router zinface.IRouter
@@ -35,6 +38,7 @@ func NewConnection(conn *net.TCPConn, connID uint32, msgHandler zinface.IMsgHand
 		ConnID:     connID,
 		isClosed:   false,
 		MsgHandler: msgHandler,
+		msgChan:    make(chan []byte),
 		ExitChan:   make(chan bool, 1),
 	}
 	return c
@@ -42,7 +46,8 @@ func NewConnection(conn *net.TCPConn, connID uint32, msgHandler zinface.IMsgHand
 
 //链接的读业务方法
 func (c *Connection) StartReader() {
-	fmt.Println("链接读的协程开启")
+	fmt.Println("reader goroutine is running")
+
 	defer fmt.Println("ConnID=", c.ConnID, "读取结束，远程地址是", c.RemoteAddr().String())
 	defer c.Stop()
 	for {
@@ -61,6 +66,7 @@ func (c *Connection) StartReader() {
 		headData := make([]byte, dp.GetHeadLen())
 		if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
 			fmt.Println("read msg head err:", err)
+			break
 		}
 		//拆包，得到msgId和len 放在msg消息中
 		msg, err := dp.UnPack(headData)
@@ -103,12 +109,33 @@ func (c *Connection) StartReader() {
 	}
 }
 
+//写消息的goroutine 专门发送给客户端消息的模块
+func (c *Connection) StartWriter() {
+	fmt.Println("writer goroutine is running")
+	defer fmt.Println(c.RemoteAddr().String(), "conn writer exit")
+	//不断的阻塞等到channel消息，进行写给客户端
+	for {
+		select {
+		case data := <-c.msgChan:
+			//有数据要写给客户端
+			if _, err := c.Conn.Write(data); err != nil {
+				fmt.Println("send data err", err)
+				return
+			}
+		case <-c.ExitChan:
+			//代表reader已经退出，此时writer也要退出
+			return
+		}
+	}
+}
+
 //启动链接 让当前的链接准备开始工作
 func (c *Connection) Start() {
 	fmt.Println("链接开启，ConnID", c.ConnID)
 	//启动从当前链接的读数据业务
 	go c.StartReader()
-	//todo 启动写数据的业务
+	//启动写数据的业务
+	go c.StartWriter()
 }
 
 //停止链接 结束当前链接的工作
@@ -121,8 +148,11 @@ func (c *Connection) Stop() {
 	c.isClosed = true
 	//关闭socket链接
 	c.Conn.Close()
+	//告知writer关闭
+	c.ExitChan <- true
 
 	close(c.ExitChan)
+	close(c.msgChan)
 }
 
 //获取当前链接的绑定socket conn
@@ -155,9 +185,10 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 		return errors.New("pack err msg")
 	}
 	//发送
-	if _, err := c.Conn.Write(binaryMsg); err != nil {
-		fmt.Println("write msg id", msgId, "err:", err)
-		return errors.New("conn write err")
-	}
+	//if _, err := c.Conn.Write(binaryMsg); err != nil {
+	//	fmt.Println("write msg id", msgId, "err:", err)
+	//	return errors.New("conn write err")
+	//}
+	c.msgChan <- binaryMsg
 	return nil
 }
