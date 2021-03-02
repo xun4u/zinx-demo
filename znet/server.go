@@ -18,17 +18,19 @@ type Server struct {
 	//监听端口
 	Port int
 	//当前的server添加一个router，server注册的链接对应的处理业务
-	Router zinface.IRouter
+	//Router zinface.IRouter
+	//当前server消息管理模块，用来绑定msgid和对应的处理业务api关系
+	MsgHandler zinface.IMsgHandle
 }
 
 //初始化方法
 func NewServer() zinface.IServer {
 	s := &Server{
-		Name:      utils.GlobalObject.Name,
-		IPVersion: "tcp4",
-		IP:        utils.GlobalObject.Host,
-		Port:      utils.GlobalObject.TcpPort,
-		Router:    nil,
+		Name:       utils.GlobalObject.Name,
+		IPVersion:  "tcp4",
+		IP:         utils.GlobalObject.Host,
+		Port:       utils.GlobalObject.TcpPort,
+		MsgHandler: NewMsgHandle(),
 	}
 	return s
 }
@@ -73,7 +75,7 @@ func (s *Server) Start() {
 			}
 
 			//将处理新链接业务的方法 和conn绑定 得到链接模块
-			dealConn := NewConnection(conn, cid, s.Router)
+			dealConn := NewConnection(conn, cid, s.MsgHandler)
 			cid++
 
 			//启动当前链接业务处理
@@ -94,7 +96,7 @@ func (s *Server) Serve() {
 	select {}
 }
 
-func (s *Server) AddRouter(router zinface.IRouter) {
-	s.Router = router
+func (s *Server) AddRouter(msgID uint32, router zinface.IRouter) {
+	s.MsgHandler.AddRouter(msgID, router)
 	fmt.Println("添加路由成功")
 }

@@ -23,17 +23,19 @@ type Connection struct {
 	ExitChan chan bool
 
 	//该链接处理的方法Router
-	Router zinface.IRouter
+	//Router zinface.IRouter
+	//消息管理msgid和对应的处理业务api
+	MsgHandler zinface.IMsgHandle
 }
 
 //初始化
-func NewConnection(conn *net.TCPConn, connID uint32, router zinface.IRouter) *Connection {
+func NewConnection(conn *net.TCPConn, connID uint32, msgHandler zinface.IMsgHandle) *Connection {
 	c := &Connection{
-		Conn:     conn,
-		ConnID:   connID,
-		isClosed: false,
-		Router:   router,
-		ExitChan: make(chan bool, 1),
+		Conn:       conn,
+		ConnID:     connID,
+		isClosed:   false,
+		MsgHandler: msgHandler,
+		ExitChan:   make(chan bool, 1),
 	}
 	return c
 }
@@ -89,14 +91,15 @@ func (c *Connection) StartReader() {
 			msg:  msg,
 		}
 		//执行注册的路由方法
-		go func(request zinface.IRequest) {
-			c.Router.PreHandle(request)
-			c.Router.Handle(request)
-			c.Router.PostHandle(request)
-		}(&req)
+		//go func(request zinface.IRequest) {
+		//	c.Router.PreHandle(request)
+		//	c.Router.Handle(request)
+		//	c.Router.PostHandle(request)
+		//}(&req)
 
 		//从路由中找到注册绑定的conn对应的router调用
-
+		//根据绑定好的msgid找到对应api业务执行
+		go c.MsgHandler.DoMsgHandler(&req)
 	}
 }
 
