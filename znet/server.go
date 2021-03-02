@@ -21,18 +21,53 @@ type Server struct {
 	//Router zinface.IRouter
 	//当前server消息管理模块，用来绑定msgid和对应的处理业务api关系
 	MsgHandler zinface.IMsgHandle
+
+	//该server的链接管理器
+	ConnManager zinface.IConnManager
+
+	//该server创建之后自动调用的hook函数
+	OnConnStart func(conn zinface.IConnection)
+	//链接销毁前调用的hook函数
+	OnConnStop func(conn zinface.IConnection)
 }
 
 //初始化方法
 func NewServer() zinface.IServer {
 	s := &Server{
-		Name:       utils.GlobalObject.Name,
-		IPVersion:  "tcp4",
-		IP:         utils.GlobalObject.Host,
-		Port:       utils.GlobalObject.TcpPort,
-		MsgHandler: NewMsgHandle(),
+		Name:        utils.GlobalObject.Name,
+		IPVersion:   "tcp4",
+		IP:          utils.GlobalObject.Host,
+		Port:        utils.GlobalObject.TcpPort,
+		MsgHandler:  NewMsgHandle(),
+		ConnManager: NewConnManager(),
 	}
 	return s
+}
+
+//注册OnConnStart
+func (s *Server) SetOnConnStart(fn func(connection zinface.IConnection)) {
+	s.OnConnStart = fn
+}
+
+//注册OnConnStop
+func (s *Server) SetOnConnStop(fn func(connection zinface.IConnection)) {
+	s.OnConnStop = fn
+}
+
+//调用OnConnStart
+func (s *Server) CallOnConnStart(connection zinface.IConnection) {
+	if s.OnConnStart != nil {
+		fmt.Println("call OnConnStart")
+		s.OnConnStart(connection)
+	}
+}
+
+//调用OnConnStop
+func (s *Server) CallOnConnStop(connection zinface.IConnection) {
+	if s.OnConnStart != nil {
+		fmt.Println("call OnConnStart")
+		s.OnConnStop(connection)
+	}
 }
 
 //定义当前客户连接锁绑定的handle 目前是写死 以后根据用户自定义
@@ -76,9 +111,16 @@ func (s *Server) Start() {
 				fmt.Println("客户端连接失败：", err)
 				continue
 			}
+			//设置最大连接个数的判断，如果超过最大数量，则关闭新的链接
+			if s.ConnManager.Len() >= utils.GlobalObject.MaxConn {
+				//todo 给客户端一个相应的超出最大连接的错误包
+				fmt.Println("too many collections")
+				conn.Close()
+				continue
+			}
 
 			//将处理新链接业务的方法 和conn绑定 得到链接模块
-			dealConn := NewConnection(conn, cid, s.MsgHandler)
+			dealConn := NewConnection(s, conn, cid, s.MsgHandler)
 			cid++
 
 			//启动当前链接业务处理
@@ -89,7 +131,9 @@ func (s *Server) Start() {
 }
 
 func (s *Server) Stop() {
-	//todo 将一些服务器资源，状态或者一些已经开辟的链接信息 进行停止或回收
+	//将一些服务器资源，状态或者一些已经开辟的链接信息 进行停止或回收
+	fmt.Println("server stop name:", s.Name)
+	s.ConnManager.ClearConn()
 }
 
 func (s *Server) Serve() {
@@ -102,4 +146,8 @@ func (s *Server) Serve() {
 func (s *Server) AddRouter(msgID uint32, router zinface.IRouter) {
 	s.MsgHandler.AddRouter(msgID, router)
 	fmt.Println("添加路由成功")
+}
+
+func (s *Server) GetConnManager() zinface.IConnManager {
+	return s.ConnManager
 }

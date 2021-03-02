@@ -12,6 +12,9 @@ import (
 //当前链接模块
 
 type Connection struct {
+	//当前Conn隶属于哪个server
+	TcpServer zinface.IServer
+
 	//当前链接的socket
 	Conn *net.TCPConn
 	//链接的ID
@@ -33,8 +36,9 @@ type Connection struct {
 }
 
 //初始化
-func NewConnection(conn *net.TCPConn, connID uint32, msgHandler zinface.IMsgHandle) *Connection {
+func NewConnection(server zinface.IServer, conn *net.TCPConn, connID uint32, msgHandler zinface.IMsgHandle) *Connection {
 	c := &Connection{
+		TcpServer:  server,
 		Conn:       conn,
 		ConnID:     connID,
 		isClosed:   false,
@@ -42,6 +46,9 @@ func NewConnection(conn *net.TCPConn, connID uint32, msgHandler zinface.IMsgHand
 		msgChan:    make(chan []byte),
 		ExitChan:   make(chan bool, 1),
 	}
+
+	//将conn加入到connManager中
+	c.TcpServer.GetConnManager().Add(c)
 	return c
 }
 
@@ -144,6 +151,9 @@ func (c *Connection) Start() {
 	go c.StartReader()
 	//启动写数据的业务
 	go c.StartWriter()
+
+	//按照开发者传递进来的 创建链接之后需要调用的处理业务对应hook函数
+	c.TcpServer.CallOnConnStart(c)
 }
 
 //停止链接 结束当前链接的工作
@@ -154,10 +164,16 @@ func (c *Connection) Stop() {
 		return
 	}
 	c.isClosed = true
+	//调用开发者注册的，链接销毁前需要执行的业务
+	c.TcpServer.CallOnConnStop(c)
+
 	//关闭socket链接
 	c.Conn.Close()
 	//告知writer关闭
 	c.ExitChan <- true
+
+	//将当前链接从connManager中删除
+	c.TcpServer.GetConnManager().Remove(c)
 
 	close(c.ExitChan)
 	close(c.msgChan)
